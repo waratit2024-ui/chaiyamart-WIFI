@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ระบบจัดการหลังบ้าน - Wi-Fi วัดไชยามาตย์</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Firebase SDK (Compat) -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+
+    <style>
+        body { font-family: 'Sarabun', sans-serif; background-color: #f3f4f6; }
+        .tab-active { border-bottom: 4px solid #d4af37; color: #b45309; font-weight: bold; }
+        .tab-inactive { border-bottom: 4px solid transparent; color: #6b7280; }
+        .tab-inactive:hover { color: #374151; border-bottom: 4px solid #e5e7eb; }
+        /* ซ่อน Scrollbar แต่ยัง Scroll ได้ */
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    </style>
+</head>
+<body class="text-gray-800">
+
+    <!-- แถบเมนูด้านบน (Navbar) -->
+    <nav class="bg-white shadow-sm border-b-4 border-[#d4af37] sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16 items-center">
+                <div class="flex items-center gap-3">
+                    <div class="bg-amber-100 p-2 rounded-full text-amber-700">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 14v3m4-3v3m4-3v3M3 21h18M3 10h18M3 7l9-4 9 4M4 10h16v11H4V10z" /></svg>
+                    </div>
+                    <div>
+                        <h1 class="font-bold text-xl text-red-800 leading-tight">Admin Dashboard</h1>
+                        <p class="text-xs text-gray-500">ระบบจัดการ Wi-Fi วัดไชยามาตย์</p>
+                    </div>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span id="connStatus" class="flex items-center gap-1 text-xs font-medium px-3 py-1 bg-yellow-100 text-yellow-700 rounded-full">
+                        <svg class="animate-spin h-3 w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                        กำลังเชื่อมต่อ...
+                    </span>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- เนื้อหาหลัก -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        
+        <!-- กล่องสรุปข้อมูล (Stats) -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+            <div class="bg-white rounded-xl shadow-sm p-6 flex items-center gap-4 border-l-4 border-blue-500">
+                <div class="p-3 bg-blue-50 text-blue-600 rounded-lg">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
+                </div>
+                <div>
+                    <p class="text-sm text-gray-500 font-medium">ผู้ลงทะเบียนทั้งหมด</p>
+                    <p class="text-3xl font-bold text-gray-900" id="totalUsers">0 <span class="text-sm font-normal text-gray-500">คน</span></p>
+                </div>
+            </div>
+            
+            <div class="bg-white rounded-xl shadow-sm p-6 flex items-center gap-4 border-l-4 border-amber-500">
+                <div class="p-3 bg-amber-50 text-amber-600 rounded-lg">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
+                </div>
+                <div>
+                    <p class="text-sm text-gray-500 font-medium">เจ้าหน้าที่ VIP ในระบบ</p>
+                    <p class="text-3xl font-bold text-gray-900" id="totalVips">0 <span class="text-sm font-normal text-gray-500">บัญชี</span></p>
+                </div>
+            </div>
+        </div>
+
+        <!-- ระบบ Tabs สลับหน้าจอ -->
+        <div class="bg-white rounded-xl shadow-sm overflow-hidden mb-8">
+            <div class="flex border-b border-gray-200">
+                <button onclick="switchTab('tab-users')" id="btn-tab-users" class="flex-1 py-4 px-6 text-center text-sm tab-active transition-colors">
+                    รายชื่อผู้ลงทะเบียน (ทั่วไป)
+                </button>
+                <button onclick="switchTab('tab-vips')" id="btn-tab-vips" class="flex-1 py-4 px-6 text-center text-sm tab-inactive transition-colors">
+                    จัดการบัญชี VIP
+                </button>
+            </div>
+
+            <!-- ============================================== -->
+            <!-- TAB 1: ข้อมูลผู้ใช้งานทั่วไป -->
+            <!-- ============================================== -->
+            <div id="tab-users" class="p-6">
+                <!-- แถบเครื่องมือ (Search & Export) -->
+                <div class="flex flex-col sm:flex-row justify-between gap-4 mb-6">
+                    <div class="relative flex-1 max-w-md">
+                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                        </div>
+                        <input type="text" id="searchInput" onkeyup="searchTable()" placeholder="ค้นหาชื่อ หรือ เบอร์โทร..." class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none transition">
+                    </div>
+                    <button onclick="exportToCSV()" class="flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium transition shadow-sm">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                        Export Excel (CSV)
+                    </button>
+                </div>
+
+                <!-- ตารางข้อมูล -->
+                <div class="border rounded-lg overflow-hidden">
+                    <div class="max-h-[500px] overflow-y-auto no-scrollbar">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50 sticky top-0 z-10">
+                                <tr>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">วัน-เวลา ที่ลงทะเบียน</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ชื่อ - นามสกุล</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">เบอร์โทรศัพท์</th>
+                                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">จัดการ</th>
+                                </tr>
+                            </thead>
+                            <tbody id="userTableBody" class="bg-white divide-y divide-gray-200">
+                                <!-- ข้อมูลจาก Firebase จะถูกแทรกที่นี่ -->
+                                <tr><td colspan="4" class="px-6 py-4 text-center text-gray-500">กำลังโหลดข้อมูล...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================== -->
+            <!-- TAB 2: การจัดการ VIP -->
+            <!-- ============================================== -->
+            <div id="tab-vips" class="p-6 hidden">
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                    
+                    <!-- ฟอร์มเพิ่ม VIP -->
+                    <div class="lg:col-span-1">
+                        <div class="bg-gray-50 p-5 rounded-xl border border-gray-200">
+                            <h3 class="text-lg font-bold text-gray-800 mb-4 border-b pb-2">เพิ่มบัญชี VIP ใหม่</h3>
+                            <form id="addVipForm" onsubmit="addVip(event)" class="space-y-4">
+                                <div>
+                                    <label class="block text-xs font-bold text-gray-700 mb-1">ชื่อผู้ใช้งาน (Username)</label>
+                                    <input type="text" id="vUser" required class="w-full p-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 outline-none">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-bold text-gray-700 mb-1">รหัสผ่าน (Password)</label>
+                                    <input type="text" id="vPass" required class="w-full p-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 outline-none">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-bold text-gray-700 mb-1">หมายเหตุ (เช่น ชื่อเจ้าหน้าที่)</label>
+                                    <input type="text" id="vNote" placeholder="ระบุหรือไม่ก็ได้" class="w-full p-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 outline-none">
+                                </div>
+                                <button type="submit" class="w-full bg-amber-600 hover:bg-amber-700 text-white font-bold py-2.5 rounded-lg transition shadow-sm">
+                                    + บันทึก VIP
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+
+                    <!-- รายชื่อ VIP -->
+                    <div class="lg:col-span-2">
+                        <h3 class="text-lg font-bold text-gray-800 mb-4">รายชื่อเจ้าหน้าที่ VIP ในระบบ</h3>
+                        <div class="border rounded-lg overflow-hidden">
+                            <table class="min-w-full divide-y divide-gray-200">
+                                <thead class="bg-gray-50">
+                                    <tr>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Username</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Password</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">หมายเหตุ</th>
+                                        <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">ลบ</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="vipTableBody" class="bg-white divide-y divide-gray-200">
+                                    <!-- ข้อมูล VIP จะถูกแทรกที่นี่ -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <!-- แจ้งเตือนแบบ Toast (มุมขวาล่าง) -->
+    <div id="toast" class="fixed bottom-5 right-5 transform transition-all duration-300 translate-y-20 opacity-0 bg-gray-800 text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-3 z-50">
+        <svg id="toastIcon" class="h-6 w-6 text-green-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+        <span id="toastMsg" class="font-medium text-sm">ทำรายการสำเร็จ</span>
+    </div>
+
+    <!-- Script ควบคุมระบบ -->
+    <script>
+        // 🔴 1. ตั้งค่า Firebase Configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyAjlP6nDLh3SDR8aQEJc7XsjR0Rb6GebBk",
+            authDomain: "free-wifi-d8972.firebaseapp.com",
+            projectId: "free-wifi-d8972",
+            storageBucket: "free-wifi-d8972.firebasestorage.app",
+            messagingSenderId: "859244478176",
+            appId: "1:859244478176:web:5c54c8e53e8107d0a01a85",
+            measurementId: "G-XBG0BJ0D26",
+            databaseURL: "https://free-wifi-d8972-default-rtdb.firebaseio.com"
+        };
+        
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+        
+        let allRegistrations = []; // เก็บข้อมูลเพื่อทำระบบ Search & Export
+
+        // 🔴 2. ติดตามสถานะการเชื่อมต่อ
+        const connectedRef = firebase.database().ref(".info/connected");
+        connectedRef.on("value", (snap) => {
+            const statusEl = document.getElementById('connStatus');
+            if (snap.val() === true) {
+                statusEl.className = "flex items-center gap-1 text-xs font-medium px-3 py-1 bg-green-100 text-green-700 rounded-full";
+                statusEl.innerHTML = `<div class="w-2 h-2 bg-green-500 rounded-full"></div> เชื่อมต่อ Database แล้ว`;
+            } else {
+                statusEl.className = "flex items-center gap-1 text-xs font-medium px-3 py-1 bg-red-100 text-red-700 rounded-full";
+                statusEl.innerHTML = `<div class="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div> ขาดการเชื่อมต่อ`;
+            }
+        });
+
+        // 🔴 3. ดึงข้อมูลผู้ลงทะเบียนทั่วไป (Realtime)
+        db.ref('registrations').on('value', (snapshot) => {
+            const data = snapshot.val();
+            allRegistrations = [];
+            const tbody = document.getElementById('userTableBody');
+            
+            if (!data) {
+                tbody.innerHTML = '<tr><td colspan="4" class="px-6 py-8 text-center text-gray-500">ยังไม่มีผู้ลงทะเบียน</td></tr>';
+                document.getElementById('totalUsers').innerHTML = `0 <span class="text-sm font-normal text-gray-500">คน</span>`;
+                return;
+            }
+
+            // แปลง Object เป็น Array เพื่อให้ Sort เรียงเวลาล่าสุดได้
+            for (let key in data) {
+                allRegistrations.push({ id: key, ...data[key] });
+            }
+            // เรียงลำดับจากล่าสุดไปเก่าสุด
+            allRegistrations.reverse();
+
+            document.getElementById('totalUsers').innerHTML = `${allRegistrations.length} <span class="text-sm font-normal text-gray-500">คน</span>`;
+            renderTable(allRegistrations);
+        });
+
+        function renderTable(dataArray) {
+            const tbody = document.getElementById('userTableBody');
+            tbody.innerHTML = "";
+            
+            if(dataArray.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" class="px-6 py-4 text-center text-gray-500 text-sm">ไม่พบข้อมูลที่ค้นหา</td></tr>';
+                return;
+            }
+
+            dataArray.forEach(row => {
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-gray-50 transition-colors";
+                tr.innerHTML = `
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${row.time || '-'}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${row.name || '-'}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">${row.phone || '-'}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                        <button onclick="deleteRecord('registrations', '${row.id}')" class="text-red-500 hover:text-red-700 bg-red-50 hover:bg-red-100 px-3 py-1 rounded transition">ลบ</button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        // 🔴 4. ดึงข้อมูล VIP (Realtime)
+        db.ref('vip').on('value', (snapshot) => {
+            const data = snapshot.val();
+            const tbody = document.getElementById('vipTableBody');
+            tbody.innerHTML = "";
+            let count = 0;
+            
+            if (!data) {
+                tbody.innerHTML = '<tr><td colspan="4" class="px-6 py-8 text-center text-gray-500">ยังไม่มีข้อมูล VIP</td></tr>';
+                document.getElementById('totalVips').innerHTML = `0 <span class="text-sm font-normal text-gray-500">บัญชี</span>`;
+                return;
+            }
+
+            for (let key in data) {
+                count++;
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td class="px-6 py-3 whitespace-nowrap text-sm font-bold text-amber-700">${data[key].user}</td>
+                    <td class="px-6 py-3 whitespace-nowrap text-sm text-gray-500 font-mono">${data[key].pass}</td>
+                    <td class="px-6 py-3 whitespace-nowrap text-sm text-gray-500">${data[key].note || '-'}</td>
+                    <td class="px-6 py-3 whitespace-nowrap text-right text-sm font-medium">
+                        <button onclick="deleteRecord('vip', '${key}')" class="text-red-500 hover:text-red-700">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                        </button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            }
+            document.getElementById('totalVips').innerHTML = `${count} <span class="text-sm font-normal text-gray-500">บัญชี</span>`;
+        });
+
+        // 🔴 5. ฟังก์ชันเพิ่ม VIP
+        function addVip(e) {
+            e.preventDefault();
+            const user = document.getElementById('vUser').value.trim();
+            const pass = document.getElementById('vPass').value.trim();
+            const note = document.getElementById('vNote').value.trim();
+            
+            if(user && pass) {
+                db.ref('vip').push({ user, pass, note })
+                .then(() => {
+                    showToast('เพิ่มบัญชี VIP สำเร็จ!');
+                    document.getElementById('addVipForm').reset();
+                })
+                .catch((error) => alert('เกิดข้อผิดพลาด: ' + error));
+            }
+        }
+
+        // 🔴 6. ฟังก์ชันลบข้อมูลทั่วไป (registrations หรือ vip)
+        function deleteRecord(path, id) {
+            if(confirm(`คุณแน่ใจหรือไม่ที่จะลบข้อมูลนี้?\n(ไม่สามารถกู้คืนได้)`)) {
+                db.ref(`${path}/${id}`).remove()
+                .then(() => showToast('ลบข้อมูลเรียบร้อยแล้ว', 'error'))
+                .catch(err => alert("ลบไม่สำเร็จ: " + err));
+            }
+        }
+
+        // 🔴 7. ระบบค้นหา (Search)
+        function searchTable() {
+            const input = document.getElementById('searchInput').value.toLowerCase();
+            const filteredData = allRegistrations.filter(row => {
+                const nameMatch = (row.name || '').toLowerCase().includes(input);
+                const phoneMatch = (row.phone || '').toLowerCase().includes(input);
+                return nameMatch || phoneMatch;
+            });
+            renderTable(filteredData);
+        }
+
+        // 🔴 8. ระบบ Export เป็นไฟล์ Excel (CSV)
+        function exportToCSV() {
+            if(allRegistrations.length === 0) {
+                alert('ไม่มีข้อมูลให้ Export'); return;
+            }
+            
+            // ใส่ BOM เพื่อให้ Excel อ่านภาษาไทย (UTF-8) ได้ถูกต้อง
+            let csvContent = "\uFEFFเวลา,ชื่อ-นามสกุล,เบอร์โทรศัพท์\n";
+            
+            allRegistrations.forEach(row => {
+                // ใส่เครื่องหมายคำพูดคลุม ป้องกันปัญหามีลูกน้ำ (,) ในชื่อ
+                const time = `"${row.time || ''}"`;
+                const name = `"${row.name || ''}"`;
+                const phone = `"${row.phone || ''}"`;
+                csvContent += `${time},${name},${phone}\n`;
+            });
+
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement("a");
+            const url = URL.createObjectURL(blob);
+            
+            const dateStr = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+            link.setAttribute("href", url);
+            link.setAttribute("download", `Wifi_Chaiyamart_Report_${dateStr}.csv`);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            
+            showToast('ดาวน์โหลดรายงาน CSV สำเร็จ!');
+        }
+
+        // 🔴 9. ระบบ UI (Tabs & Toast)
+        function switchTab(tabId) {
+            // ซ่อน/แสดง เนื้อหา
+            document.getElementById('tab-users').classList.add('hidden');
+            document.getElementById('tab-vips').classList.add('hidden');
+            document.getElementById(tabId).classList.remove('hidden');
+
+            // เปลี่ยนสีปุ่ม Tab
+            const btnUsers = document.getElementById('btn-tab-users');
+            const btnVips = document.getElementById('btn-tab-vips');
+            
+            btnUsers.className = "flex-1 py-4 px-6 text-center text-sm transition-colors " + (tabId === 'tab-users' ? 'tab-active' : 'tab-inactive');
+            btnVips.className = "flex-1 py-4 px-6 text-center text-sm transition-colors " + (tabId === 'tab-vips' ? 'tab-active' : 'tab-inactive');
+        }
+
+        let toastTimeout;
+        function showToast(msg, type = 'success') {
+            const toast = document.getElementById('toast');
+            const icon = document.getElementById('toastIcon');
+            document.getElementById('toastMsg').innerText = msg;
+            
+            if(type === 'error') {
+                icon.className = "h-6 w-6 text-red-400";
+                icon.innerHTML = `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />`;
+            } else {
+                icon.className = "h-6 w-6 text-green-400";
+                icon.innerHTML = `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />`;
+            }
+
+            toast.classList.remove('translate-y-20', 'opacity-0');
+            clearTimeout(toastTimeout);
+            toastTimeout = setTimeout(() => {
+                toast.classList.add('translate-y-20', 'opacity-0');
+            }, 3000);
+        }
+    </script>
+</body>
+</html>
